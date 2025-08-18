@@ -64,8 +64,10 @@ test_that("empty_result handles zero-length outcomes", {
   # still returns the same fixed shapes for other fields
   expect_identical(res$selected_variables, character(0))
   expect_identical(res$penalty_factors, numeric(0))
-  expect_type(res$models, "list"); expect_length(res$models, 0)
-  expect_type(res$goodness_of_fit, "list"); expect_length(res$goodness_of_fit, 0)
+  expect_type(res$models, "list")
+  expect_length(res$models, 0)
+  expect_type(res$goodness_of_fit, "list")
+  expect_length(res$goodness_of_fit, 0)
 
   expect_identical(res$interaction_metadata$interaction_terms, character(0))
   expect_identical(res$interaction_metadata$main_effects_in_interactions, character(0))

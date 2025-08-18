@@ -1,5 +1,3 @@
-skip_if_not_installed("survey")
-
 test_that(".validate_assess_inputs errors if design is not a survey.design", {
   fake <- list(variables = data.frame(a = 1:3))
   expect_error(
@@ -20,8 +18,10 @@ test_that(".validate_assess_inputs errors if design is not a survey.design", {
 
 test_that(".validate_assess_inputs errors for unknown diagnostics", {
   data(api, package = "survey")
-  dsgn <- survey::svydesign(id = ~1, strata = ~stype, weights = ~pw,
-                            data = apistrat, fpc = ~fpc)
+  dsgn <- survey::svydesign(
+    id = ~1, strata = ~stype, weights = ~pw,
+    data = apistrat, fpc = ~fpc
+  )
   expect_error(
     .validate_assess_inputs(
       design = dsgn,
@@ -40,8 +40,10 @@ test_that(".validate_assess_inputs errors for unknown diagnostics", {
 
 test_that(".validate_assess_inputs requires calibration_pop_totals when calibration_formula is provided and not already calibrated", {
   data(api, package = "survey")
-  dsgn <- survey::svydesign(id = ~1, strata = ~stype, weights = ~pw,
-                            data = apistrat, fpc = ~fpc)
+  dsgn <- survey::svydesign(
+    id = ~1, strata = ~stype, weights = ~pw,
+    data = apistrat, fpc = ~fpc
+  )
 
   # Missing pop totals -> error
   expect_error(
@@ -77,8 +79,10 @@ test_that(".validate_assess_inputs requires calibration_pop_totals when calibrat
 
 test_that(".validate_assess_inputs errors when domain_vars not present in design data", {
   data(api, package = "survey")
-  dsgn <- survey::svydesign(id = ~1, strata = ~stype, weights = ~pw,
-                            data = apistrat, fpc = ~fpc)
+  dsgn <- survey::svydesign(
+    id = ~1, strata = ~stype, weights = ~pw,
+    data = apistrat, fpc = ~fpc
+  )
 
   expect_error(
     .validate_assess_inputs(
@@ -98,8 +102,10 @@ test_that(".validate_assess_inputs errors when domain_vars not present in design
 
 test_that(".validate_assess_inputs warns for register_vars or survey_vars not in design", {
   data(api, package = "survey")
-  dsgn <- survey::svydesign(id = ~1, strata = ~stype, weights = ~pw,
-                            data = apistrat, fpc = ~fpc)
+  dsgn <- survey::svydesign(
+    id = ~1, strata = ~stype, weights = ~pw,
+    data = apistrat, fpc = ~fpc
+  )
 
   # Capture warnings for both register_vars and survey_vars paths
   expect_warning(
@@ -135,8 +141,10 @@ test_that(".validate_assess_inputs warns for register_vars or survey_vars not in
 
 test_that(".validate_assess_inputs is silent on valid inputs", {
   data(api, package = "survey")
-  dsgn <- survey::svydesign(id = ~1, strata = ~stype, weights = ~pw,
-                            data = apistrat, fpc = ~fpc)
+  dsgn <- survey::svydesign(
+    id = ~1, strata = ~stype, weights = ~pw,
+    data = apistrat, fpc = ~fpc
+  )
 
   expect_silent(
     .validate_assess_inputs(
@@ -144,9 +152,9 @@ test_that(".validate_assess_inputs is silent on valid inputs", {
       df = survey::apistrat,
       calibration_formula = NULL,
       calibration_pop_totals = NULL,
-      register_vars = c("ell", "meals"),  # exist
-      survey_vars = c("api00"),           # exists
-      domain_vars = c("stype"),           # exists
+      register_vars = c("ell", "meals"), # exist
+      survey_vars = c("api00"), # exists
+      domain_vars = c("stype"), # exists
       diagnostics = c("weight_variation", "register_diagnostics", "survey_diagnostics"),
       already_calibrated = TRUE
     )

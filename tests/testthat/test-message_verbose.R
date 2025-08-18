@@ -1,7 +1,3 @@
-library(testthat)
-
-
-
 test_that("message_verbose prints message when verbose=TRUE", {
   expect_message(message_verbose(TRUE, "This is a test message"), "This is a test message")
 })

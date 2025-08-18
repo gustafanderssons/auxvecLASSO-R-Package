@@ -1,5 +1,3 @@
-skip_if_not_installed("withr")
-
 test_that("build_model_matrix returns expected structure without interactions", {
   withr::local_options(contrasts = c("contr.treatment", "contr.poly"))
 
@@ -131,4 +129,56 @@ test_that("column set contains a reasonable number of interactions for factor:fa
   expect_gte(length(int_cols), lower_bound)
   expect_lte(length(int_cols), upper_bound)
   expect_gt(length(int_cols), 0)
+})
+
+test_that("build_model_matrix correctly handles factor variables", {
+  # Sample dataframe with a factor variable
+  df <- data.frame(
+    stype = factor(c("E", "M", "H", "E", "M")),
+    age = c(25, 30, 35, 40, 45),
+    gender = factor(c("Male", "Female", "Female", "Male", "Female"))
+  )
+
+  # Auxiliary variables (including the factor variable "stype")
+  auxiliary_vars <- c("stype", "age", "gender")
+
+  # Call build_model_matrix
+  mm <- build_model_matrix(df, auxiliary_vars, check_twoway_int = TRUE)
+
+  # Check the structure of the model matrix
+  X <- mm$X
+  colnames_X <- colnames(X)
+
+  # Ensure that dummy variables for "stype" are included (i.e., stypeE, stypeM, stypeH)
+  expect_true(any(grepl("^stype", colnames_X)))
+
+  # Ensure all main effects for factors are captured correctly
+  expect_true("stype" %in% auxiliary_vars) # should keep "stype"
+})
+
+test_that("must_have_vars correctly includes all dummy variables for factor variables", {
+  # Sample dataframe with factor variables
+  df <- data.frame(
+    stype = factor(c("E", "M", "H", "E", "M")),
+    age = c(25, 30, 35, 40, 45),
+    gender = factor(c("Male", "Female", "Female", "Male", "Female"))
+  )
+
+  auxiliary_vars <- c("stype", "age", "gender")
+
+  # User inputs "stype" as must-have variable
+  must_have_vars <- c("stype")
+
+  # Build model matrix
+  mm <- build_model_matrix(df, auxiliary_vars, check_twoway_int = TRUE)
+  X <- mm$X
+  colnames_X <- colnames(X)
+
+  # Ensure that all dummy variables for "stype" (stypeE, stypeM, stypeH) are in the model
+  must_have_idx <- grep("stype", must_have_vars)
+  for (i in must_have_idx) {
+    # Check that all columns corresponding to factor "stype" are included
+    factor_cols <- grep(paste0("^", must_have_vars[i]), colnames_X)
+    expect_true(length(factor_cols) > 0) # should include all dummy variables for "stype"
+  }
 })

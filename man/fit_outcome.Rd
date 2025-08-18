@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_outcome.R
 \name{fit_outcome}
 \alias{fit_outcome}
-\title{Fit LASSO model for a single binary outcome with cross-validation}
+\title{Fit LASSO model for a single outcome with cross-validation}
 \usage{
 fit_outcome(
   yvar,
@@ -17,7 +17,7 @@ fit_outcome(
 )
 }
 \arguments{
-\item{yvar}{Character scalar. The name of the binary outcome variable in \code{df}.}
+\item{yvar}{Character scalar. The name of the outcome variable in \code{df}. This can be either a binary or continuous outcome variable.}
 
 \item{df}{Data frame containing the outcome and predictors.
 The outcome variable (\code{yvar}) and predictor variables must be included in \code{df}.}
@@ -47,10 +47,15 @@ A list containing:
 \itemize{
 \item \code{cross_validated}: A list with \code{cv_error} (cross-validation error) and \code{cv_error_sd} (standard deviation of CV error).
 \item \code{full_data}: A list with:
-\item \code{deviance_explained}: Proportion of deviance explained by the model.
-\item \code{auc}: Area under the ROC curve.
-\item \code{accuracy}: Classification accuracy.
-\item \code{brier_score}: Brier score (mean squared error for probabilities).
+\item \code{deviance_explained}: Proportion of deviance explained by the model (only for binary outcomes).
+\item \code{auc}: Area under the ROC curve (only for binary outcomes).
+\item \code{accuracy}: Classification accuracy (only for binary outcomes).
+\item \code{brier_score}: Brier score (mean squared error for probabilities) (only for binary outcomes).
+\item \code{rss}: Residual sum of squares (only for continuous outcomes).
+\item \code{mse}: Mean squared error (only for continuous outcomes).
+\item \code{rmse}: Root mean squared error (only for continuous outcomes).
+\item \code{mae}: Mean absolute error (only for continuous outcomes).
+\item \code{r_squared}: R-squared (only for continuous outcomes).
 \item \code{raw_coefs}: Raw coefficients from the LASSO model.
 \item \code{abs_coefs}: Absolute values of the coefficients.
 }
@@ -59,17 +64,109 @@ A list containing:
 }
 }
 \description{
-Fits a LASSO logistic regression model for a single binary outcome using cross-validation.
+Fits a LASSO regression model (logistic regression for binary outcomes or linear regression for continuous outcomes) for a single outcome variable using cross-validation.
 The function drops rows where the outcome is missing, and ensures that the predictors do not
 have missing values. The model is fitted using the \code{glmnet} package, with the option to apply
 cross-validation for selecting the optimal regularization parameter (\code{lambda}).
 }
 \details{
 \itemize{
-\item The outcome variable (\code{yvar}) must be binary (two levels) after dropping missing values.
-\item Rows with missing values for the outcome (\code{yvar}) or predictors (\code{X}) will be dropped.
-\item The function uses the \code{glmnet} package to fit the LASSO logistic regression model.
-\item Cross-validation is used to select the optimal regularization parameter (\code{lambda}).
-\item Model performance metrics, including AUC, accuracy, and Brier score, are computed on the non-missing rows.
+\item The outcome variable (\code{yvar}) can be either \strong{binary} or \strong{continuous}:
+\itemize{
+\item \strong{Binary outcomes}: LASSO logistic regression is used. The outcome variable must have exactly two levels after missing values are removed.
+\item \strong{Continuous outcomes}: LASSO linear regression is used. The outcome variable should be numeric.
 }
+\item Rows with missing values for the outcome (\code{yvar}) or predictors (\code{X}) will be dropped.
+\item The function uses the \code{glmnet} package to fit the LASSO model.
+\item Cross-validation is used to select the optimal regularization parameter (\code{lambda}).
+\item Model performance metrics, including \strong{AUC}, \strong{accuracy}, \strong{Brier score} (for binary outcomes) or \strong{RSS}, \strong{MSE}, \strong{RMSE}, \strong{MAE}, \strong{R-squared} (for continuous outcomes), are computed on the non-missing rows.
+}
+}
+\examples{
+## ============================================================
+## Example 1: Binary outcome (binomial LASSO with CV)
+## ============================================================
+if (requireNamespace("glmnet", quietly = TRUE) &&
+  requireNamespace("pROC", quietly = TRUE)) {
+  set.seed(101)
+
+  n <- 180
+  x1 <- rnorm(n)
+  x2 <- rnorm(n)
+  f <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
+
+  ## Construct a binary outcome with signal in x2 and x1:x2
+  lin <- -0.3 + 1.0 * x2 + 0.6 * (x1 * x2) - 0.7 * (f == "C")
+  p <- 1 / (1 + exp(-lin))
+  yfac <- factor(rbinom(n, 1, p), labels = c("No", "Yes")) # 2-level factor
+
+  df <- data.frame(y = yfac, x1 = x1, x2 = x2, f = f)
+
+  ## Model matrix with main effects + one interaction, no intercept
+  X <- model.matrix(~ x1 + x2 + f + x1:x2 - 1, data = df)
+
+  ## Penalty factors must match X's columns (names + length).
+  penalty_factors <- rep(1, ncol(X))
+  names(penalty_factors) <- colnames(X)
+  ## (Optional) keep x1 unpenalized:
+  if ("x1" \%in\% names(penalty_factors)) penalty_factors["x1"] <- 0
+
+  fit_bin <- fit_outcome(
+    yvar            = "y",
+    df              = df,
+    X               = X,
+    penalty_factors = penalty_factors,
+    nfolds          = 3,
+    standardize     = TRUE,
+    parallel        = FALSE,
+    return_models   = FALSE,
+    verbose         = FALSE
+  )
+
+  ## Peek at the results
+  fit_bin$selected
+  fit_bin$lambda_min
+  fit_bin$goodness$full_data$auc
+  fit_bin$goodness$full_data$accuracy
+}
+
+## ============================================================
+## Example 2: Continuous outcome (gaussian LASSO with CV)
+## ============================================================
+if (requireNamespace("glmnet", quietly = TRUE)) {
+  set.seed(202)
+
+  n <- 160
+  x1 <- rnorm(n)
+  x2 <- rnorm(n)
+  f <- factor(sample(c("L", "H"), n, replace = TRUE))
+
+  y <- 1.5 * x1 + 0.8 * x2 - 1.0 * (f == "H") + 0.6 * (x1 * x2) + rnorm(n, sd = 0.7)
+  df <- data.frame(y = y, x1 = x1, x2 = x2, f = f)
+
+  ## Main effects only, no intercept
+  X <- model.matrix(~ x1 + x2 + f - 1, data = df)
+
+  penalty_factors <- rep(1, ncol(X))
+  names(penalty_factors) <- colnames(X)
+
+  fit_cont <- fit_outcome(
+    yvar            = "y",
+    df              = df,
+    X               = X,
+    penalty_factors = penalty_factors,
+    nfolds          = 3,
+    standardize     = TRUE,
+    parallel        = FALSE,
+    return_models   = FALSE,
+    verbose         = FALSE
+  )
+
+  ## Key metrics
+  fit_cont$selected
+  fit_cont$lambda_min
+  fit_cont$goodness$full_data$mse
+  fit_cont$goodness$full_data$r_squared
+}
+
 }

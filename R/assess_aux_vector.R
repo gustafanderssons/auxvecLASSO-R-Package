@@ -58,29 +58,128 @@
 #'   }
 #'
 #' @examples
-#' # Example 1: Assessing diagnostics without calibration
-#' result <- assess_aux_vector(
-#'   design = survey_design_object,
-#'   df = survey_data,
-#'   register_vars = c("age", "income"),
-#'   survey_vars = c("age", "income"),
-#'   diagnostics = c("weight_variation", "register_diagnostics"),
-#'   verbose = TRUE
-#' )
+#' ## ============================================================
+#' ## Example 1: Calibrate weights, then run all diagnostics
+#' ##            (register + survey, with a by-domain breakdown)
+#' ## ============================================================
+#' if (requireNamespace("survey", quietly = TRUE)) {
+#'   set.seed(42)
+#'   options(survey.lonely.psu = "adjust")
 #'
-#' # Example 2: Calibrating weights and assessing diagnostics
-#' result <- assess_aux_vector(
-#'   design = survey_design_object,
-#'   df = survey_data,
-#'   calibration_formula = ~age + gender,
-#'   calibration_pop_totals = list(age = c(18 = 1000, 25 = 1200)),
-#'   register_vars = c("age", "gender"),
-#'   survey_vars = c("income"),
-#'   diagnostics = c("weight_variation", "survey_diagnostics"),
-#'   verbose = TRUE
-#' )
+#'   ## --- Simulate a tiny sample
+#'   n <- 200
+#'   sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+#'   sex[1:2] <- c("F", "M")
+#'   sex <- factor(sex, levels = c("F", "M"))
+#'   region <- factor(sample(c("N", "S"), n, replace = TRUE))
+#'   region[1:2] <- c("N", "S")
+#'   region <- factor(region, levels = c("N", "S"))
+#'   age <- round(rnorm(n, mean = 41, sd = 12))
+#'   ## Register variable we have population means for:
+#'   reg_income <- 50000 + 2000 * (region == "S") + rnorm(n, sd = 4000)
+#'   ## A couple of survey variables to diagnose:
+#'   y1 <- 10 + 2 * (sex == "M") + rnorm(n, sd = 2)
+#'   y2 <- 100 + 5 * (region == "S") + rnorm(n, sd = 5)
+#'   ## Some unequal weights (to make weight-variation meaningful)
+#'   w <- runif(n, 0.6, 2.2) * 50
+#'
+#'   df <- data.frame(sex, region, age, reg_income, y1, y2, w)
+#'   design <- survey::svydesign(ids = ~1, weights = ~w, data = df)
+#'
+#'   ## --- Calibration setup (simple main-effects formula)
+#'   ## Model matrix columns will be: (Intercept), sexM, regionS, age
+#'   Npop <- 5000
+#'   pop_mean_age <- 40
+#'   calibration_formula <- ~ sex + region + age
+#'   calibration_pop_totals <- c(
+#'     "(Intercept)" = Npop,
+#'     "sexM"        = round(0.45 * Npop), # 45% of population is male
+#'     "regionS"     = round(0.40 * Npop), # 40% in region S
+#'     "age"         = pop_mean_age * Npop # totals (mean * N)
+#'   )
+#'
+#'   ## --- Register population means: total + by domain (single register var)
+#'   register_vars <- "reg_income"
+#'   register_pop_means <- list(
+#'     total = c(reg_income = 51000), # overall pop mean
+#'     by_domain = list(
+#'       region = c(N = 50000, S = 52000) # domain-specific pop means
+#'     )
+#'   )
+#'
+#'   out1 <- assess_aux_vector(
+#'     design                  = design,
+#'     df                      = df,
+#'     calibration_formula     = calibration_formula,
+#'     calibration_pop_totals  = calibration_pop_totals,
+#'     register_vars           = register_vars,
+#'     register_pop_means      = register_pop_means,
+#'     survey_vars             = c("y1", "y2"),
+#'     domain_vars             = c("region"),
+#'     diagnostics             = c("weight_variation", "register_diagnostics", "survey_diagnostics"),
+#'     already_calibrated      = FALSE,
+#'     verbose                 = FALSE
+#'   )
+#'
+#'   ## Peek at key outputs:
+#'   out1$weight_variation
+#'   out1$register_diagnostics$total
+#'   out1$register_diagnostics$by_domain$region
+#'   out1$survey_diagnostics$total
+#' }
+#'
+#' ## ============================================================
+#' ## Example 2: Skip calibration; survey diagnostics by domain
+#' ## ============================================================
+#' if (requireNamespace("survey", quietly = TRUE)) {
+#'   set.seed(99)
+#'   options(survey.lonely.psu = "adjust")
+#'
+#'   n <- 120
+#'   region <- factor(sample(c("N", "S"), n, replace = TRUE))
+#'   region[1:2] <- c("N", "S")
+#'   region <- factor(region, levels = c("N", "S"))
+#'   sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+#'   sex[1:2] <- c("F", "M")
+#'   sex <- factor(sex, levels = c("F", "M"))
+#'   age <- round(rnorm(n, 39, 11))
+#'   yA <- rnorm(n, mean = 50 + 3 * (region == "S"))
+#'   yB <- rnorm(n, mean = 30 + 1.5 * (sex == "M"))
+#'   w <- runif(n, 0.7, 1.8) * 40
+#'
+#'   toy <- data.frame(region, sex, age, yA, yB, w)
+#'   des <- survey::svydesign(ids = ~1, weights = ~w, data = toy)
+#'
+#'   out2 <- assess_aux_vector(
+#'     design = des,
+#'     df = toy,
+#'     calibration_formula = NULL, # skip calibration
+#'     calibration_pop_totals = NULL,
+#'     register_vars = NULL, # no register diagnostics
+#'     survey_vars = c("yA", "yB"),
+#'     domain_vars = "region",
+#'     diagnostics = c("weight_variation", "survey_diagnostics"),
+#'     already_calibrated = TRUE, # explicitly skip calibration
+#'     verbose = FALSE
+#'   )
+#'
+#'   out2$weight_variation
+#'   out2$survey_diagnostics$by_domain$region
+#' }
+#'
+#' @details
+#' The function supports several diagnostic checks, including weight variation diagnostics, register diagnostics (total and by domain), and survey diagnostics (total and by domain).
+#'
+#' The function may also calibrate survey weights based on a provided calibration formula and population totals. Calibration can be skipped if the weights are already calibrated.
+#'
+#' The weight diagnostics contain the following measures:
+#' - Descriptive statistics (min, max, median, mean, standard deviation (sd), range, bottom percentile, top percentile)
+#' - Inequality measures (coefficient of variation, Gini index, entropy)
+#' - Skewness and (excess) kurtosis
 #'
 #' @seealso \code{\link[survey]{calibrate}} for the calibration function.
+#'
+#' @importFrom stats setNames
 #'
 #' @export
 assess_aux_vector <- function(
@@ -95,24 +194,50 @@ assess_aux_vector <- function(
     diagnostics = c("weight_variation", "register_diagnostics", "survey_diagnostics"),
     already_calibrated = FALSE,
     verbose = FALSE) {
-
   .validate_assess_inputs(
     design, df,
     calibration_formula, calibration_pop_totals,
     register_vars, survey_vars, domain_vars, diagnostics, already_calibrated
   )
 
+  register_vars <- unique(register_vars)
+  survey_vars <- unique(survey_vars)
+  domain_vars <- unique(domain_vars)
+
   # Calibrate weights if requested
   if (!already_calibrated && !is.null(calibration_formula)) {
     if (verbose) message("Preparing calibration inputs...")
     cal <- .prepare_calibration_inputs(design, calibration_formula, calibration_pop_totals)
+
+    # Recompute sample model matrix columns to be explicit about what's usable
+    X_samp_tmp <- stats::model.matrix(
+      stats::terms(calibration_formula, data = design$variables),
+      data = design$variables
+    )
+    usable_cols <- intersect(colnames(X_samp_tmp), cal$needed)
+    n_aux <- length(setdiff(usable_cols, "(Intercept)"))
+    has_int <- "(Intercept)" %in% usable_cols
+
     if (verbose) {
-      message("Calibrating weights using ", length(cal$needed) - 1, " auxiliary variable(s) ",
-              "and intercept.")
+      message(sprintf(
+        "Calibrating weights using %d auxiliary variable(s)%s.",
+        n_aux, if (has_int) " and intercept" else ""
+      ))
     }
-    design <- survey::calibrate(design, formula = calibration_formula,
-                                population = cal$pop, bounds = c(0, Inf),
-                                calfun = "linear")
+    if (n_aux == 0L) {
+      stop("No matching auxiliary columns between sample model matrix and population_totals. ",
+        "Check factor levels and names.",
+        call. = FALSE
+      )
+    }
+
+    design <- survey::calibrate(
+      design,
+      formula    = calibration_formula, # keep as a formula for survey::calibrate
+      population = cal$pop,
+      bounds     = c(0, Inf),
+      calfun     = "linear"
+    )
     if (verbose) message("Calibration complete.")
   } else if (verbose) {
     message("Skipping calibration step.")
@@ -131,26 +256,47 @@ assess_aux_vector <- function(
   if ("register_diagnostics" %in% diagnostics && !is.null(register_vars) && length(register_vars) > 0) {
     if (verbose) message("Computing register diagnostics (total)...")
     pop_means_total <- if (!is.null(register_pop_means)) register_pop_means$total else NULL
+    if (is.list(pop_means_total)) {
+      tmp <- unlist(pop_means_total, use.names = TRUE)
+      if (is.numeric(tmp) && length(tmp)) pop_means_total <- tmp
+    }
+
     result$register_diagnostics$total <- estimate_mean_stats(
-      design, register_vars, population_means = pop_means_total
+      design, register_vars,
+      population_means = pop_means_total
     )
 
-    if (!is.null(domain_formula) && !is.null(register_pop_means) && !is.null(register_pop_means$by_domain)) {
+    if (!is.null(domain_vars) && !is.null(register_pop_means) && !is.null(register_pop_means$by_domain)) {
       if (verbose) message("Computing register diagnostics (by domain)...")
-      result$register_diagnostics$by_domain <- estimate_mean_stats(
-        design, register_vars, by = domain_formula, population_means = register_pop_means$by_domain
-      )
+      result$register_diagnostics$by_domain <- stats::setNames(vector("list", length(domain_vars)), domain_vars)
+      for (dom in domain_vars) {
+        pop_dom <- NULL
+        if (length(register_vars) == 1L && dom %in% names(register_pop_means$by_domain)) {
+          pop_dom <- .coerce_pop_means_margin(dom, register_pop_means$by_domain[[dom]], register_vars[1])
+        }
+        result$register_diagnostics$by_domain[[dom]] <- estimate_mean_stats(
+          design, register_vars,
+          by = dom, population_means = pop_dom
+        )
+      }
     }
   }
+
 
   # Survey diagnostics
   if ("survey_diagnostics" %in% diagnostics && !is.null(survey_vars) && length(survey_vars) > 0) {
     if (verbose) message("Computing survey diagnostics (total)...")
     result$survey_diagnostics$total <- estimate_mean_stats(design, survey_vars)
 
-    if (!is.null(domain_formula)) {
+    if (!is.null(domain_vars)) {
       if (verbose) message("Computing survey diagnostics (by domain)...")
-      result$survey_diagnostics$by_domain <- estimate_mean_stats(design, survey_vars, by = domain_formula)
+      result$survey_diagnostics$by_domain <- stats::setNames(vector("list", length(domain_vars)), domain_vars)
+      for (dom in domain_vars) {
+        result$survey_diagnostics$by_domain[[dom]] <- estimate_mean_stats(
+          design, survey_vars,
+          by = dom
+        )
+      }
     }
   }
 

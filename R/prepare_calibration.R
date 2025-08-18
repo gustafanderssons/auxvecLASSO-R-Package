@@ -23,26 +23,31 @@
 #' @keywords internal
 #' @noRd
 .prepare_calibration_inputs <- function(design, calibration_formula, calibration_pop_totals) {
+  # Build on the SAMPLE design to know what columns will be used
   mf <- stats::model.frame(calibration_formula, data = design$variables)
-  X  <- stats::model.matrix(calibration_formula, data = mf)
+  tt <- stats::terms(calibration_formula, data = mf)
+  X <- stats::model.matrix(tt, data = mf)
   needed <- colnames(X)
 
+  # Accept named numeric vector or data.frame; subset & order to `needed`
   if (is.numeric(calibration_pop_totals) && !is.null(names(calibration_pop_totals))) {
-    if (!all(needed %in% names(calibration_pop_totals))) {
-      stop("Population totals names must include: ", paste(needed, collapse = ", "), call. = FALSE)
+    missing <- setdiff(needed, names(calibration_pop_totals))
+    if (length(missing)) {
+      stop("Population totals names must include: ", paste(missing, collapse = ", "), call. = FALSE)
     }
     calibration_pop_totals <- calibration_pop_totals[needed]
-
   } else if (is.data.frame(calibration_pop_totals)) {
-    if (!all(needed %in% colnames(calibration_pop_totals))) {
+    missing <- setdiff(needed, colnames(calibration_pop_totals))
+    if (length(missing)) {
       stop("Population totals data.frame columns must include: ",
-           paste(needed, collapse = ", "), call. = FALSE)
+        paste(missing, collapse = ", "),
+        call. = FALSE
+      )
     }
     calibration_pop_totals <- calibration_pop_totals[, needed, drop = FALSE]
-
   } else {
     stop("calibration_pop_totals must be a named numeric vector or data.frame.", call. = FALSE)
   }
 
-  list(pop = calibration_pop_totals)
+  list(pop = calibration_pop_totals, needed = needed)
 }

@@ -48,3 +48,74 @@ global weight filter). An error will occur if no valid data remains.
 being estimated. The rows are merged by domain key.
 }
 }
+\examples{
+## ============================================================
+## Example 1: Overall means with population means (bias/MSE)
+## ============================================================
+if (requireNamespace("survey", quietly = TRUE)) {
+  set.seed(123)
+  options(survey.lonely.psu = "adjust")
+
+  n <- 200
+  region <- factor(sample(c("N", "S"), n, replace = TRUE))
+  sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+  y <- 10 + 2 * (sex == "M") + rnorm(n, sd = 1.5)
+  z <- 100 + 5 * (region == "S") + rnorm(n, sd = 3)
+  w <- runif(n, 0.8, 1.8) * 50
+  df <- data.frame(region, sex, y, z, w)
+
+  des <- survey::svydesign(ids = ~1, weights = ~w, data = df)
+
+  ## Named vector of population means for overall case
+  pop_means <- c(y = 11.2, z = 103.0)
+
+  res_overall <- estimate_mean_stats(
+    design = des,
+    vars = c("y", "z"),
+    by = NULL,
+    population_means = pop_means
+  )
+
+  ## Each element is a one-row data frame
+  res_overall$y
+  res_overall$z
+}
+
+## ============================================================
+## Example 2: Domain means by region with population means table
+## ============================================================
+if (requireNamespace("survey", quietly = TRUE)) {
+  set.seed(456)
+  options(survey.lonely.psu = "adjust")
+
+  n <- 150
+  region <- factor(sample(c("N", "S"), n, replace = TRUE), levels = c("N", "S"))
+  sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+  y <- 12 + 1.5 * (region == "S") + rnorm(n, sd = 1.2)
+  z <- 95 + 6 * (region == "S") + rnorm(n, sd = 2.5)
+  w <- runif(n, 0.7, 2.0) * 40
+  toy <- data.frame(region, sex, y, z, w)
+
+  des2 <- survey::svydesign(ids = ~1, weights = ~w, data = toy)
+
+  ## Population means by domain must include the domain column(s) + vars
+  pop_by_region <- data.frame(
+    region = c("N", "S"),
+    y = c(12.2, 13.8),
+    z = c(95.5, 101.0),
+    stringsAsFactors = FALSE
+  )
+
+  res_by <- estimate_mean_stats(
+    design = des2,
+    vars = c("y", "z"),
+    by = ~region, # or equivalently: by = "region"
+    population_means = pop_by_region # merged by the 'region' key
+  )
+
+  ## Each element is a data frame with domain rows
+  res_by$y
+  res_by$z
+}
+
+}

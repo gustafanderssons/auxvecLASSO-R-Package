@@ -3,7 +3,7 @@
 #' This internal helper function checks the provided data frame and outcome variables,
 #' returning only those outcome variables that are present in the data and have at least
 #' two distinct non-missing values. It also ensures that auxiliary variables are present
-#' in the data, and it provides verbose messages based on the `verbose` flag.
+#' in the data, and it provides verbose messages based on the verbose flag.
 #'
 #' @param df Data frame containing both outcome and auxiliary variables.
 #' @param outcome_vars Character vector of outcome variable names to be validated.
@@ -18,11 +18,11 @@
 #' @noRd
 validate_and_filter_outcomes <- function(df, outcome_vars, auxiliary_vars, verbose) {
   if (nrow(df) == 0) {
-    message_verbose(verbose, "Input data frame has zero rows — returning empty selection.")
+    message_verbose(verbose, "Input data frame has zero rows - returning empty selection.")
     return(character(0))
   }
   if (length(auxiliary_vars) == 0) {
-    message_verbose(verbose, "No auxiliary variables — returning empty selection.")
+    message_verbose(verbose, "No auxiliary variables - returning empty selection.")
     return(character(0))
   }
 
@@ -31,7 +31,7 @@ validate_and_filter_outcomes <- function(df, outcome_vars, auxiliary_vars, verbo
   })]
 
   if (length(valid_outcomes) == 0) {
-    message_verbose(verbose, "No valid outcome variables — returning empty selection.")
+    message_verbose(verbose, "No valid outcome variables - returning empty selection.")
     return(character(0))
   }
 

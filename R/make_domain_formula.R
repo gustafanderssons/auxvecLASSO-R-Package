@@ -12,6 +12,8 @@
 #' @keywords internal
 #' @noRd
 .make_domain_formula <- function(domain_vars) {
-  if (is.null(domain_vars) || length(domain_vars) == 0L) return(NULL)
+  if (is.null(domain_vars) || length(domain_vars) == 0L) {
+    return(NULL)
+  }
   stats::reformulate(termlabels = domain_vars, response = NULL)
 }

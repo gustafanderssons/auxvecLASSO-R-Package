@@ -88,29 +88,127 @@ diagnostics, register diagnostics (total and by domain), and survey diagnostics
 
 The function may also calibrate survey weights based on a provided calibration formula
 and population totals. Calibration can be skipped if the weights are already calibrated.
+
+The function supports several diagnostic checks, including weight variation diagnostics, register diagnostics (total and by domain), and survey diagnostics (total and by domain).
+
+The function may also calibrate survey weights based on a provided calibration formula and population totals. Calibration can be skipped if the weights are already calibrated.
+
+The weight diagnostics contain the following measures:
+\itemize{
+\item Descriptive statistics (min, max, median, mean, standard deviation (sd), range, bottom percentile, top percentile)
+\item Inequality measures (coefficient of variation, Gini index, entropy)
+\item Skewness and (excess) kurtosis
+}
 }
 \examples{
-# Example 1: Assessing diagnostics without calibration
-result <- assess_aux_vector(
-  design = survey_design_object,
-  df = survey_data,
-  register_vars = c("age", "income"),
-  survey_vars = c("age", "income"),
-  diagnostics = c("weight_variation", "register_diagnostics"),
-  verbose = TRUE
-)
+## ============================================================
+## Example 1: Calibrate weights, then run all diagnostics
+##            (register + survey, with a by-domain breakdown)
+## ============================================================
+if (requireNamespace("survey", quietly = TRUE)) {
+  set.seed(42)
+  options(survey.lonely.psu = "adjust")
 
-# Example 2: Calibrating weights and assessing diagnostics
-result <- assess_aux_vector(
-  design = survey_design_object,
-  df = survey_data,
-  calibration_formula = ~age + gender,
-  calibration_pop_totals = list(age = c(18 = 1000, 25 = 1200)),
-  register_vars = c("age", "gender"),
-  survey_vars = c("income"),
-  diagnostics = c("weight_variation", "survey_diagnostics"),
-  verbose = TRUE
-)
+  ## --- Simulate a tiny sample
+  n <- 200
+  sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+  sex[1:2] <- c("F", "M")
+  sex <- factor(sex, levels = c("F", "M"))
+  region <- factor(sample(c("N", "S"), n, replace = TRUE))
+  region[1:2] <- c("N", "S")
+  region <- factor(region, levels = c("N", "S"))
+  age <- round(rnorm(n, mean = 41, sd = 12))
+  ## Register variable we have population means for:
+  reg_income <- 50000 + 2000 * (region == "S") + rnorm(n, sd = 4000)
+  ## A couple of survey variables to diagnose:
+  y1 <- 10 + 2 * (sex == "M") + rnorm(n, sd = 2)
+  y2 <- 100 + 5 * (region == "S") + rnorm(n, sd = 5)
+  ## Some unequal weights (to make weight-variation meaningful)
+  w <- runif(n, 0.6, 2.2) * 50
+
+  df <- data.frame(sex, region, age, reg_income, y1, y2, w)
+  design <- survey::svydesign(ids = ~1, weights = ~w, data = df)
+
+  ## --- Calibration setup (simple main-effects formula)
+  ## Model matrix columns will be: (Intercept), sexM, regionS, age
+  Npop <- 5000
+  pop_mean_age <- 40
+  calibration_formula <- ~ sex + region + age
+  calibration_pop_totals <- c(
+    "(Intercept)" = Npop,
+    "sexM"        = round(0.45 * Npop), # 45\% of population is male
+    "regionS"     = round(0.40 * Npop), # 40\% in region S
+    "age"         = pop_mean_age * Npop # totals (mean * N)
+  )
+
+  ## --- Register population means: total + by domain (single register var)
+  register_vars <- "reg_income"
+  register_pop_means <- list(
+    total = c(reg_income = 51000), # overall pop mean
+    by_domain = list(
+      region = c(N = 50000, S = 52000) # domain-specific pop means
+    )
+  )
+
+  out1 <- assess_aux_vector(
+    design                  = design,
+    df                      = df,
+    calibration_formula     = calibration_formula,
+    calibration_pop_totals  = calibration_pop_totals,
+    register_vars           = register_vars,
+    register_pop_means      = register_pop_means,
+    survey_vars             = c("y1", "y2"),
+    domain_vars             = c("region"),
+    diagnostics             = c("weight_variation", "register_diagnostics", "survey_diagnostics"),
+    already_calibrated      = FALSE,
+    verbose                 = FALSE
+  )
+
+  ## Peek at key outputs:
+  out1$weight_variation
+  out1$register_diagnostics$total
+  out1$register_diagnostics$by_domain$region
+  out1$survey_diagnostics$total
+}
+
+## ============================================================
+## Example 2: Skip calibration; survey diagnostics by domain
+## ============================================================
+if (requireNamespace("survey", quietly = TRUE)) {
+  set.seed(99)
+  options(survey.lonely.psu = "adjust")
+
+  n <- 120
+  region <- factor(sample(c("N", "S"), n, replace = TRUE))
+  region[1:2] <- c("N", "S")
+  region <- factor(region, levels = c("N", "S"))
+  sex <- factor(sample(c("F", "M"), n, replace = TRUE))
+  sex[1:2] <- c("F", "M")
+  sex <- factor(sex, levels = c("F", "M"))
+  age <- round(rnorm(n, 39, 11))
+  yA <- rnorm(n, mean = 50 + 3 * (region == "S"))
+  yB <- rnorm(n, mean = 30 + 1.5 * (sex == "M"))
+  w <- runif(n, 0.7, 1.8) * 40
+
+  toy <- data.frame(region, sex, age, yA, yB, w)
+  des <- survey::svydesign(ids = ~1, weights = ~w, data = toy)
+
+  out2 <- assess_aux_vector(
+    design = des,
+    df = toy,
+    calibration_formula = NULL, # skip calibration
+    calibration_pop_totals = NULL,
+    register_vars = NULL, # no register diagnostics
+    survey_vars = c("yA", "yB"),
+    domain_vars = "region",
+    diagnostics = c("weight_variation", "survey_diagnostics"),
+    already_calibrated = TRUE, # explicitly skip calibration
+    verbose = FALSE
+  )
+
+  out2$weight_variation
+  out2$survey_diagnostics$by_domain$region
+}
 
 }
 \seealso{

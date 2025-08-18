@@ -22,11 +22,35 @@
 #' @keywords internal
 #' @noRd
 build_model_matrix <- function(df, auxiliary_vars, check_twoway_int) {
+  # Identify factors in auxiliary variables
+  factor_vars <- auxiliary_vars[sapply(df[auxiliary_vars], is.factor)]
+
+  # Create the formula for the model
   formula_str <- if (check_twoway_int) {
     paste0("~ (", paste(auxiliary_vars, collapse = " + "), ")^2 -1")
   } else {
     paste0("~ ", paste(auxiliary_vars, collapse = " + "), " -1")
   }
+
+  # Build the model matrix using the formula
   X <- model.matrix(as.formula(formula_str), data = df)
+
+  # Capture column names of the model matrix
+  colnames_X <- colnames(X)
+
+  # Adjust the list of expanded_vars to include factor levels for factors
+  expanded_vars <- auxiliary_vars # Start with original auxiliary_vars list
+
+  # Loop through each factor variable and ensure its levels are included
+  for (factor_var in factor_vars) {
+    # Identify the columns related to the factor (these are the dummy variables)
+    factor_cols <- grep(paste0("^", factor_var), colnames_X)
+    # Ensure the factor variable itself (e.g., "stype") is included, if it's not already present
+    if (!(factor_var %in% expanded_vars)) {
+      expanded_vars <- c(expanded_vars, factor_var)
+    }
+  }
+
+  # Return the updated model matrix and the formula string used to generate it
   list(X = X, formula_str = formula_str)
 }

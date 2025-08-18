@@ -53,9 +53,77 @@ error statistics and metrics on full data fit
 If the \pkg{crayon} package is not installed, the function will stop with an error.
 }
 \examples{
-\dontrun{
-# Assuming 'lasso_cv_obj' is a select_auxiliary_variables_lasso_cv object:
-print(lasso_cv_obj)
+## ============================================================
+## Example 1: Binary + continuous outcomes, with interactions
+##            (prints selected vars, lambdas, GOF, coef table, interactions)
+## ============================================================
+if (requireNamespace("glmnet", quietly = TRUE) &&
+  requireNamespace("pROC", quietly = TRUE) &&
+  requireNamespace("crayon", quietly = TRUE)) {
+  set.seed(123)
+
+  n <- 180
+  x1 <- rnorm(n)
+  x2 <- rnorm(n)
+  grp <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
+
+  ## Binary outcome with signal in x2, grp, and x1:x2 (make it a 2-level factor)
+  eta <- -0.4 + 1.0 * x2 - 0.8 * (grp == "C") + 0.6 * (x1 * x2)
+  p <- 1 / (1 + exp(-eta))
+  y_bin <- factor(rbinom(n, 1, p), labels = c("No", "Yes"))
+
+  ## Continuous outcome with some interaction
+  y_cont <- 1.4 * x1 + 0.9 * x2 - 1.1 * (grp == "B") + 0.5 * (x1 * x2) + rnorm(n, sd = 0.7)
+
+  df <- data.frame(y_bin = y_bin, y_cont = y_cont, x1 = x1, x2 = x2, grp = grp)
+
+  lasso_obj1 <- select_auxiliary_variables_lasso_cv(
+    df               = df,
+    outcome_vars     = c("y_bin", "y_cont"),
+    auxiliary_vars   = c("x1", "x2", "grp"),
+    must_have_vars   = c("x1", "grp"), # 'grp' expands to its dummy columns
+    check_twoway_int = TRUE, # include all two-way interactions
+    nfolds           = 3,
+    verbose          = FALSE,
+    standardize      = TRUE,
+    return_models    = FALSE, # models not stored (printer still shows GOF & coefs)
+    parallel         = FALSE
+  )
+
+  ## Colorized, formatted summary:
+  print(lasso_obj1)
+}
+
+## ============================================================
+## Example 2: Single continuous outcome, main effects only
+##            (stores model so the printer reports it)
+## ============================================================
+if (requireNamespace("glmnet", quietly = TRUE) &&
+  requireNamespace("crayon", quietly = TRUE)) {
+  set.seed(456)
+
+  n <- 140
+  a <- rnorm(n)
+  b <- rnorm(n)
+  f <- factor(sample(c("L", "H"), n, replace = TRUE))
+  y <- 2 * a + 0.8 * b - 1.2 * (f == "H") + rnorm(n, sd = 0.8)
+
+  toy <- data.frame(y = y, a = a, b = b, f = f)
+
+  lasso_obj2 <- select_auxiliary_variables_lasso_cv(
+    df               = toy,
+    outcome_vars     = "y",
+    auxiliary_vars   = c("a", "b", "f"),
+    must_have_vars   = "f", # keep factor (its dummies get zero penalty)
+    check_twoway_int = FALSE, # main effects only
+    nfolds           = 3,
+    verbose          = FALSE,
+    standardize      = TRUE,
+    return_models    = TRUE, # store cv.glmnet model
+    parallel         = FALSE
+  )
+
+  print(lasso_obj2)
 }
 
 }

@@ -1,10 +1,13 @@
 ---
-title: "intro-to-auxvecLASSO"
+title: "Introduction to the auxvecLASSO package"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{intro-to-auxvecLASSO}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r, include = FALSE}
@@ -15,5 +18,551 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
+# Load necessary libraries
 library(auxvecLASSO)
+library(survey)
+library(sampling)
+library(dplyr)
+
+# Set seed for reproducibility
+set.seed(123)
 ```
+
+# Introduction
+
+Auxiliary variables can greatly improve performance when using models in
+survey data analyses, for example in contexts like survey calibration,
+imputation or prediction. Traditional methods for variable selection,
+such as the commonly used stepwise forward selection method, have
+several drawbacks: they are greedy/myopic, sensitive to small changes in
+data, and may often lead to selecting irrelevant variables due to
+inflated Type I Errors.
+
+In contrast, the LASSO (Least Absolute Shrinkage and Selection Operator)
+offers several advantages: simultaneous selection and shrinkage,
+stability even in high-dimensional settings, computational efficiency,
+and discouraging overfitting, leading to models that tend to generalize
+better to new data. In short, viewing auxiliary variable selection as a
+prediction/statistical learning problem can offer many advantages (see
+also, for example, [Caughey & Hartman
+(2017)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3494436) and
+[Mainzer et al.
+(2024)](https://pmc.ncbi.nlm.nih.gov/articles/PMC7615727/)).
+
+The `auxvecLASSO` package provides tools for selecting auxiliary
+variables using LASSO and conducting diagnostics related to survey
+calibration. The main function
+`selection_auxiliary_variables_lasso_cv()` allows users to perform
+LASSO-penalized regression (logistic regression for binary outcomes or
+linear regression for continuous outcomes) with cross-validation to
+select auxiliary variables for modeling one or more outcome variables.
+It allows for the inclusion of all two-way interactions among the
+auxiliary variables and the option to enforce a hierarchical structure
+by keeping certain variables in the model through the use of zero
+penalty factors.
+
+A relative strength of the package is the accompanying function
+`assess_aux_vector()`, which can be used to evaluate the performance of
+candidate auxiliary vectors.
+
+In this vignette, we demonstrate how to apply the key functions in the
+`auxvecLASSO` package using the `api` dataset from the `survey` package.
+
+In this example, we will:
+
+1.  Select auxiliary variables using LASSO
+
+2.  Evaluate the chosen auxiliary vector
+
+# Dataset
+
+We will work with the `api` data from the `survey` package. It contains
+survey data about the API scores of a population of schools and
+additional auxiliary variables. Based on the `apipop` dataset, we will
+draw a stratified sample which will serve as the point of departure for
+our modeling.
+
+We begin by using the `apipop` dataset and add some binary variables to
+it to make calculations as easy as possible. Auxiliary variables can
+also contain more than two categories, and even be continuous/numerical.
+See the `survey` package documentation for more information on allowed
+formats for auxiliary variables.
+
+```{r, create_pop_file}
+# Load the population data
+data(api)
+
+# Load the population data file and add binary variables
+api_pop <- apipop
+api_pop$api00_bin <- as.factor(ifelse(api_pop$api00 > 650, 1, 0))
+api_pop$growth_bin <- as.factor(ifelse(api_pop$growth > 25, 1, 0))
+api_pop$meals_bin <- as.factor(ifelse(api_pop$meals > 40, 1, 0))
+api_pop$ell_bin <- as.factor(ifelse(api_pop$ell > 15, 1, 0))
+api_pop$hsg_bin <- as.factor(ifelse(api_pop$hsg > 20, 1, 0))
+api_pop$full_bin <- as.factor(ifelse(api_pop$full > 90, 1, 0))
+api_pop$sch.wide_bin <- as.factor(ifelse(api_pop$sch.wide == "Yes", 1, 0))
+api_pop$awards_bin <- as.factor(ifelse(api_pop$awards == "Yes", 1, 0))
+api_pop$comp.imp_bin <- as.factor(ifelse(api_pop$comp.imp == "Yes", 1, 0))
+api_pop$stype <- as.factor(api_pop$stype)
+
+# Keep only relevant variables
+api_pop <- api_pop |>
+  dplyr::select("cds", "stype", "enroll", ends_with("_bin"))
+```
+
+Next, we draw a stratified sample based on **stype** to create a sample
+file.
+
+```{r, create_sample}
+strata_sample <- sampling::strata(
+  api_pop, # The population dataset
+  stratanames = c("stype"), # Stratification variable
+  size = c(150, 200, 175), # Desired sample sizes per stratum
+  method = "srswor" # Sampling without replacement
+)
+
+api_sample <- getdata(api_pop, strata_sample)
+api_sample$SamplingWeight <- 1 / api_sample$Prob
+```
+
+We will also add a response indicator to the sample file.
+
+```{r dataimport}
+# Artificial logistic regression coefficients (for both main effects and interactions)
+coefficients <- c(
+  "api00_bin" = 0.5,
+  "growth_bin" = -0.3,
+  "ell_bin" = -0.6,
+  "interaction1" = 0.9, # Interaction term api00_bin:growth_bin
+  "interaction2" = 1.2 # Interaction term api00_bin:ell_bin
+)
+
+# Create interaction terms for logistic model
+api_sample$interaction1 <- as.numeric(api_sample$api00_bin) * as.numeric(api_sample$growth_bin)
+api_sample$interaction2 <- as.numeric(api_sample$api00_bin) * as.numeric(api_sample$ell_bin)
+
+# Calculate the logit (log-odds) based on the artificial coefficients and interaction terms
+logit <- -1.2 +
+  coefficients["api00_bin"] * as.numeric(api_sample$api00_bin) +
+  coefficients["growth_bin"] * as.numeric(api_sample$growth_bin) +
+  coefficients["ell_bin"] * as.numeric(api_sample$ell_bin) +
+  coefficients["interaction1"] * api_sample$interaction1 +
+  coefficients["interaction2"] * api_sample$interaction2
+
+# Compute the logistic probabilities
+api_sample$response_prob <- 1 / (1 + exp(-logit)) # Logistic function
+
+# Simulate the response variable (1 for response, 0 for non-response)
+api_sample$response <- as.factor(rbinom(n = nrow(api_sample), size = 1, prob = api_sample$response_prob))
+
+# --- Check the summary of the sample ---
+summary(api_sample)
+```
+
+# Selecting Auxiliary Variables via LASSO
+
+Variables in our analyses will have different purposes:
+
+-   Outcome variables [*the response indicator and central survey
+    variables*] (the response indicator together with survey variables
+    used to evaluate point estimates and standard errors where unknown
+    population totals make it hard to evaluate bias/MSE and to use these
+    as auxiliary variables)
+
+-   Candidate auxiliary variables (variables that might be selected to
+    the auxiliary vector)
+
+When evaluating auxiliary vector performance, we will also need:
+
+-   Register variables (variables with known population totals - these
+    are assumed to be good proxies of central survey variables)
+
+-   Domain variables (variables that delineate subsets of the population
+    for which we want to compute/evaluate estimates)
+
+In this example, we will use the following variables:
+
+-   The response indicator **response** and **enroll** are outcome
+    variables, where **enroll** is assumed to be a survey variable.
+
+-   The variables **api00_bin**, **growth_bin**, **meals_bin**,
+    **meals_bin**, **ell_bin**, **hsg_bin**, **avg.ed_bin**,
+    **full_bin**, **comp.imp_bin** and **stype** are candidate auxiliary
+    variables.
+
+-   The variable **sch.wide_bin** is assumed to be a register variable.
+
+-   The stratification variable **stype** and **awards_bin** are domain
+    variables in this example.
+
+## Variable selection using auxvecLASSO
+
+The `select_auxiliary_variables_lasso_cv()` function can be used to
+perform LASSO-based variable selection for binary and continuous
+outcomes. The LASSO variable selection is made through one call of the
+function `select_auxiliary_variables_lasso_cv()`. In this example, we
+will demand that **stype** be included in the auxiliary vector since it
+is the stratification variable.
+
+```{r lassomodeling}
+# Apply LASSO for selecting auxiliary variables
+lasso_result <- select_auxiliary_variables_lasso_cv(
+  df = api_sample,
+  outcome_vars = c("response", "enroll"),
+  auxiliary_vars = c(
+    "api00_bin", "growth_bin", "comp.imp_bin", "meals_bin",
+    "meals_bin", "ell_bin", "hsg_bin", "full_bin", "stype"
+  ),
+  must_have_vars = "stype", # Include the domain variable (stype) in the model
+  check_twoway_int = TRUE, # Include two-way interactions
+  nfolds = 5, # Use 5-fold cross-validation
+  verbose = FALSE, # Don't print progress messages
+  standardize = TRUE, # Standardize the predictors
+  return_models = FALSE, # Don't return the models, only the selection results
+  parallel = FALSE # Run without parallel processing
+)
+
+# Display the results
+lasso_result
+```
+
+## Understanding the Output
+
+The output from the `select_auxiliary_variables_lasso_cv()` function
+includes several key components:
+
+### Selected variables
+
+This is the list of all variables (main effects and interaction terms)
+that were selected by the LASSO model. Variables like **api00_bin0**,
+**growth_bin1**, **stypeH**, **stypeM**, etc., represent the individual
+effects of the auxiliary variables (binary or continuous) used in the
+model. **api00_bin1:comp.imp_bin1**, **growth_bin1:stypeH**, etc.,
+represent interactions between two variables. These are considered
+important for predicting the outcome and have non-zero coefficients.
+
+### By outcome
+
+**response** and **enroll**: These are the two outcomes modeled
+separately. This breakdown helps you see which variables are more
+relevant for each specific outcome.
+
+### Selected lambdas
+
+**Lambda** is a regularization parameter used in LASSO to control the
+strength of the penalty.
+
+### Penalty factors
+
+Two variables have been forced into the model (must-keep) with a penalty
+factor of zero. These are variables that must stay in the model
+regardless of the regularization. Please note that "variables" in this
+case refers to the columns of the model matrix. In our example,
+**stype** was stated as a must-have variable. This variable is a factor
+with three levels, where the first level has been removed in the
+modeling phase to avoid the dummy variable trap.
+
+The remaining 43 "variables" are subject to regularization and can
+potentially be shrunk to zero depending on the strength of the lambda
+penalty.
+
+### Goodness-of-fit
+
+This section describes the model fit at the chosen `lambda.min` (the
+lambda that minimizes cross-validation error). Note that the set of
+goodness-of-fit measures are different between binary and continuous
+outcomes.
+
+#### Metrics
+
+For **response**:
+
+-   **Cross-validated error**: 0.6052 with standard deviation 0.0135.
+    This indicates the average prediction error across folds during
+    cross-validation.
+
+-   **Deviance explained**: 0.1303. The deviance explained is a measure
+    of the goodness-of-fit, indicating that the model explains some of
+    the variance in the **response** variable.
+
+-   **AUC (Area Under the Curve)**: 0.8122. AUC is a measure of the
+    model's ability to distinguish between the two classes (response = 0
+    or 1). The obtained value suggests that the model has good
+    discriminatory power.
+
+-   **Accuracy**: 0.8857. The model correctly classifies 96.19% of the
+    observations, which is quite high, although it should be noted that
+    the response indicator is imbalanced in our toy example.
+
+-   **Brier Score**: 0.0892. This is a measure of the accuracy of
+    probabilistic predictions. A lower Brier score indicates better
+    calibration of predicted probabilities.
+
+For **enroll**:
+
+-   **Cross-validated error**: 188,129.5 with standard deviation
+    13,594.59. This is the model's average prediction error across folds
+    for the **enroll** outcome.
+
+-   **R-squared**: 0.4676. This means the model explains 46.76% of the
+    variance in the **enroll** outcome. R-squared is a measure of how
+    well the independent variables explain the variation in the
+    dependent variable.
+
+-   **MSE (Mean Squared Error)**: 171,872.7. A lower MSE indicates a
+    better fit.
+
+-   **RMSE (Root Mean Squared Error)**: 414.5753. A higher RMSE
+    indicates worse predictive accuracy, as it represents the standard
+    deviation of the prediction errors.
+
+-   **MAE (Mean Absolute Error)**: 305.8876. This is the average
+    magnitude of the prediction errors. The lower the MAE, the better.
+
+#### Coefficients at Lambda Min
+
+This section displays the values of the coefficients (betas) at the
+selected `lambda.min`. These coefficients represent the effect of each
+variable in the model at the chosen regularization strength. For
+**response**, variables like **api00_bin0** and **growth_bin1** have
+non-zero coefficients, suggesting they have a significant relationship
+with **response**. For **enroll**, several variables have large
+coefficients, including **stypeH**, **stypeM**, and
+**comp.imp_bin1:stypeH**, which seem to significantly influence the
+prediction of **enroll**.
+
+Variables with a zero coefficient have been regularized out of the
+model, meaning they didn't contribute to the prediction at the chosen
+`lambda.min`.
+
+### Interaction metadata
+
+This section gives an overview of the results concerning interaction
+terms and the full formula tested.
+
+**Summary**
+
+This output demonstrates how LASSO performs both feature selection and
+regularization to reduce the model complexity and improve
+generalization. The model for **response** performs quite well, whereas
+the **enroll** model has room for improvement in terms of predictive
+power.
+
+# Assessing Auxiliary Vector Calibration and Diagnostics
+
+## Choice of auxiliary vector to examine
+
+Next, we will assess the calibration of auxiliary variables using the
+`assess_aux_vector()` function. This function provides a comprehensive
+assessment of auxiliary vector calibration performance for a given
+survey design. The function can also calibrate weights based on a
+specified calibration formula and population totals. The function
+returns a detailed list of diagnostics, which can help to evaluate and
+improve survey weights.
+
+Based on the results from the LASSO modeling, together with a
+domain-expertise judgment of the statistical relationships, data
+sufficiency, and what usually works in survey analysis and calibration,
+the following auxiliary vector is assessed:
+
+-   **Main effects**:\
+    **stype (all levels), growth_bin, api100_bin, ell_bin, comp.imp_bin,
+    hsg_bin**
+
+-   **Interaction effects**:\
+    **comp.imp_bin *x* stype, api00_bin *x* stype, hsg_bin *x* stype,
+    api00_bin *x* growth_bin**
+
+## Preparations
+
+To make the example as realistic as possible, the response set from the
+sample file is analyzed (since, in practice, we don't have survey
+variable information for non-respondents).
+
+```{r, create_resp-set}
+api_resp <- api_sample[api_sample$response == 1, ]
+```
+
+We will also create a survey design object to pass to the assessment
+function.
+
+```{r, svydesign}
+design <- survey::svydesign(
+  ids     = ~1,
+  data    = api_resp,
+  strata  = ~stype,
+  weights = ~SamplingWeight
+)
+```
+
+Since we are considering register variable diagnostics, register
+variable means need to be calculated.
+
+```{r, cal_reg_means}
+register_pop_means <- list(
+  total = list(sch.wide_bin = mean(api_pop$sch.wide_bin == "1")),
+  by_domain = list(
+    stype = tapply(api_pop$sch.wide_bin, api_pop$stype,
+                   function(x) mean(x == "1")),
+    awards_bin = tapply(api_pop$sch.wide_bin, api_pop$awards_bin,
+                        function(x) mean(x == "1"))
+  )
+)
+```
+
+We also need to calculate population totals for the weight calibration
+to be possible. This can be done using the package function
+`generate_population_totals` which requires a calibration formula as
+input.
+
+```{r, calib_totals}
+## --- Define the calibration formula ---
+calibration_formula <- ~ stype + growth_bin + api00_bin + ell_bin + comp.imp_bin + hsg_bin + api00_bin:stype + hsg_bin:stype + comp.imp_bin:stype + api00_bin:growth_bin
+
+## --- Calculate population totals with a single terms object built on the POPULATION ---
+pop_totals <- generate_population_totals(population_df = api_pop,
+                                         calibration_formula)
+```
+
+## Calling the assessment function
+
+We use the objects created in the preparations phase and pass them as
+arguments to the assessment function.
+
+Please note that the assessment function can be used to compare
+different auxiliary vectors by passing different calibration formulae
+(for example, on with and one without interaction terms) and matching
+population totals to it.
+
+```{r assess_vec}
+result_diagnostics <- assess_aux_vector(
+  design                   = design,
+  df                       = api_resp,
+  already_calibrated       = FALSE,
+  calibration_formula      = calibration_formula,
+  calibration_pop_totals   = pop_totals$population_totals,
+  register_vars            = c("sch.wide_bin"),
+  register_pop_means       = register_pop_means,
+  survey_vars              = c("enroll", "full_bin"),
+  domain_vars              = c("stype", "awards_bin"),
+  diagnostics              = c("weight_variation", 
+                               "register_diagnostics", 
+                               "survey_diagnostics"),
+  verbose                  = FALSE
+)
+
+## --- Display output ---
+result_diagnostics
+```
+
+## Understanding the Output
+
+The function `assess_aux_vector()` produces a structured summary of
+diagnostics that help you understand how your calibration or auxiliary
+vector adjustment performed. The output is organized into three main
+sections:
+
+### **Weight variation metrics**
+
+This block describes how the analysis weights are distributed. Stable,
+well-behaved weights improve the reliability of estimates.
+
+-   **min / max / median / mean / sd / range**: Basic distribution of
+    weights.\
+    *Here:* weights range from **3.18** to **38.64** with mean **13.32**
+    and sd **10.89** → relatively wide spread.
+
+-   **coefficient_of_variation (CV)** = sd / mean. Rules of thumb: CV ≲
+    0.5 is comfortable; CV \> 1 suggests heavy dispersion.\
+    *Here:* **0.82** → notable dispersion but not extreme.
+
+-   **gini_index** (0–1): inequality of weights (0 = equal).\
+    *Here:* **0.416** → moderate inequality.
+
+-   **entropy**: higher = more uniform weights (units depend on log
+    base).\
+    *Here:* **5.84**.
+
+-   **skewness / kurtosis**: shape diagnostics (skewness \> 0 means long
+    right tail; kurtosis \< 0 is flatter than normal).\
+    *Here:* **skewness 0.81** (some high-weight tail), **kurtosis
+    −1.11** (flatter).
+
+-   **bottom_1pct / top_1pct**: extreme percentiles for quick outlier
+    check.\
+    *Here:* 1st pct **3.37**, 99th pct **38.64**.
+
+### Register variable diagnostics
+
+For each *register variable* supplied with population means, the
+function reports design-based estimates, uncertainty, and bias relative
+to the benchmark.
+
+Reported statistics per variable (and per domain, if requested):
+
+-   **Mean**: weighted sample estimate.
+
+-   **SE**: standard error of the estimate.
+
+-   **RSE** = SE / Mean (relative SE).
+
+-   **Bias** = (Weighted mean − Population mean).
+
+-   **MSE**: mean squared error (Bias² + Var).
+
+-   **p(Bias)**: two-sided test that Bias = 0 (large values imply no
+    detectable bias).
+
+Based on the output, the calibrated estimates match the register means
+closely (no evidence of significant biases). For example at the total
+level, the bias of the estimate of the mean **sch.wide_bin** is −0.0027
+with a p-value of p=0.849, which indicates that the chosen auxiliary
+vector consists of valuable auxiliary variables. Similar results are
+shown at the domain-level. As a test, the domain **awards_bin=1** was
+included, in which all rows have **sch.wide_bin=1** - the output mean
+estimate of exactly 1.000 is consistent with the given data structure.
+
+### Survey variable diagnostics
+
+The assessment function provides design-based estimates and precision
+for the survey variable estimates. Bias/MSE/p-values are NA because
+there is no benchmark to compare against.
+
+Overall mean enrollment was 603.6 students (RSE = 2.1%), and the
+proportion of full schools was 0.516 (RSE = 5.5%). Domain-level RSEs
+generally remained below 10%, supporting reliable comparisons across
+*stype* and *awards_bin*.
+
+# Conclusion
+
+The `auxvecLASSO` package is designed to help survey practitioners treat
+auxiliary variable selection as a statistical learning problem. In this
+vignette, we walked through two key components of the package:
+
+-   **Variable selection with LASSO**
+    (`select_auxiliary_variables_lasso_cv()`), which identifies
+    promising auxiliary variables (and interactions) for modeling survey
+    outcomes.
+
+-   **Calibration diagnostics** (`assess_aux_vector()`), which evaluates
+    how a chosen auxiliary vector performs in practice, using metrics on
+    weight distribution, register variable alignment, and survey
+    estimate precision.
+
+Together, these tools provide a workflow for:
+
+1.   generating candidate auxiliary vectors, and
+
+2.  checking whether the resulting weights behave sensibly and lead to
+    accurate, stable estimates.
+
+While this vignette illustrated the functions on a simple dataset, the
+same approach extends to larger and more complex surveys. Readers are
+encouraged to adapt the demonstrated steps to their own data, paying
+special attention to the diagnostics: stable weights, low bias on
+register variables, and acceptable precision on survey estimates are all
+signs that the chosen auxiliary vector is working well.
+
+For further details, advanced options, and examples, consult the package
+documentation.
+

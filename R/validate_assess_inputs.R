@@ -43,7 +43,9 @@
   if (!all(diagnostics %in% allowed)) {
     bad <- setdiff(diagnostics, allowed)
     stop("Unknown diagnostics: ", paste(bad, collapse = ", "),
-         ". Allowed: ", paste(allowed, collapse = ", "), call. = FALSE)
+      ". Allowed: ", paste(allowed, collapse = ", "),
+      call. = FALSE
+    )
   }
 
   # calibration sanity
@@ -59,20 +61,30 @@
     miss <- setdiff(domain_vars, dn)
     if (length(miss)) {
       stop("All domain_vars must exist in the survey design data. Missing: ",
-           paste(miss, collapse = ", "), call. = FALSE)
+        paste(miss, collapse = ", "),
+        call. = FALSE
+      )
     }
   }
 
   # Optional: warn if register/survey vars are not in the design data
   if (!is.null(register_vars)) {
     miss <- setdiff(register_vars, names(design$variables))
-    if (length(miss)) warning("Some register_vars not found in design data: ",
-                              paste(miss, collapse = ", "))
+    if (length(miss)) {
+      warning(
+        "Some register_vars not found in design data: ",
+        paste(miss, collapse = ", ")
+      )
+    }
   }
   if (!is.null(survey_vars)) {
     miss <- setdiff(survey_vars, names(design$variables))
-    if (length(miss)) warning("Some survey_vars not found in design data: ",
-                              paste(miss, collapse = ", "))
+    if (length(miss)) {
+      warning(
+        "Some survey_vars not found in design data: ",
+        paste(miss, collapse = ", ")
+      )
+    }
   }
 
   invisible(NULL)

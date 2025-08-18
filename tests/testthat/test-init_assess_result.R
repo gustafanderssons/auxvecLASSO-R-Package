@@ -1,6 +1,3 @@
-# tests/testthat/test-init_assess_result.R
-skip_if_not_installed("survey")
-
 test_that(".init_assess_result returns the expected structure", {
   data(api, package = "survey")
   dsgn <- survey::svydesign(
@@ -29,14 +26,14 @@ test_that(".init_assess_result returns the expected structure", {
   expect_length(res$weight_variation, 0)
 
   expect_type(res$register_diagnostics, "list")
-  expect_true(all(c("total","by_domain") %in% names(res$register_diagnostics)))
+  expect_true(all(c("total", "by_domain") %in% names(res$register_diagnostics)))
   expect_type(res$register_diagnostics$total, "list")
   expect_length(res$register_diagnostics$total, 0)
   expect_type(res$register_diagnostics$by_domain, "list")
   expect_length(res$register_diagnostics$by_domain, 0)
 
   expect_type(res$survey_diagnostics, "list")
-  expect_true(all(c("total","by_domain") %in% names(res$survey_diagnostics)))
+  expect_true(all(c("total", "by_domain") %in% names(res$survey_diagnostics)))
   expect_type(res$survey_diagnostics$total, "list")
   expect_length(res$survey_diagnostics$total, 0)
   expect_type(res$survey_diagnostics$by_domain, "list")

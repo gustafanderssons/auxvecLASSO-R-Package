@@ -1,5 +1,3 @@
-# tests/testthat/test-make_domain_formula.R
-
 test_that(".make_domain_formula returns NULL for NULL or empty input", {
   expect_null(.make_domain_formula(NULL))
   expect_null(.make_domain_formula(character(0)))

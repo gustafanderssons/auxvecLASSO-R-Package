@@ -26,13 +26,14 @@
 #'   }
 #' }
 #'
+#' @importFrom stats setNames
 #' @keywords internal
 #' @noRd
 empty_result <- function(outcomes) {
   list(
     selected_variables = character(0),
-    by_outcome = setNames(vector("list", length(outcomes)), outcomes),
-    selected_lambdas = setNames(rep(NA_real_, length(outcomes)), outcomes),
+    by_outcome = stats::setNames(vector("list", length(outcomes)), outcomes),
+    selected_lambdas = stats::setNames(rep(NA_real_, length(outcomes)), outcomes),
     penalty_factors = numeric(0),
     models = list(),
     goodness_of_fit = list(),

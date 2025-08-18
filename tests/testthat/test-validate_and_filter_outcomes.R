@@ -31,12 +31,12 @@ test_that("returns empty and messages when no auxiliary variables provided", {
 test_that("filters outcomes by presence in df and >= 2 unique values", {
   set.seed(1)
   df <- data.frame(
-    y1 = sample(0:1, 20, TRUE),     # 2 unique values
-    y2 = rep(1, 20),                # 1 unique value
+    y1 = sample(0:1, 20, TRUE), # 2 unique values
+    y2 = rep(1, 20), # 1 unique value
     x1 = rnorm(20),
     x2 = rnorm(20)
   )
-  outcome_vars <- c("y1", "y2", "y3")  # y3 not present
+  outcome_vars <- c("y1", "y2", "y3") # y3 not present
   aux <- c("x1", "x2")
 
   res <- validate_and_filter_outcomes(df, outcome_vars, aux, verbose = FALSE)
@@ -61,9 +61,9 @@ test_that("returns empty and messages when no valid outcomes remain", {
 test_that("handles factor and numeric outcomes and preserves order", {
   set.seed(2)
   df <- data.frame(
-    a = factor(sample(c("A", "B"), 30, TRUE)),  # 2 levels
-    b = sample(0:1, 30, TRUE),                  # 2 unique numeric
-    c = rep(5, 30),                             # 1 unique -> invalid
+    a = factor(sample(c("A", "B"), 30, TRUE)), # 2 levels
+    b = sample(0:1, 30, TRUE), # 2 unique numeric
+    c = rep(5, 30), # 1 unique -> invalid
     x = rnorm(30)
   )
   # Supply in specific order; expect same order back
