@@ -402,10 +402,14 @@ variable means need to be calculated.
 register_pop_means <- list(
   total = list(sch.wide_bin = mean(api_pop$sch.wide_bin == "1")),
   by_domain = list(
-    stype = tapply(api_pop$sch.wide_bin, api_pop$stype,
-                   function(x) mean(x == "1")),
-    awards_bin = tapply(api_pop$sch.wide_bin, api_pop$awards_bin,
-                        function(x) mean(x == "1"))
+    stype = tapply(
+      api_pop$sch.wide_bin, api_pop$stype,
+      function(x) mean(x == "1")
+    ),
+    awards_bin = tapply(
+      api_pop$sch.wide_bin, api_pop$awards_bin,
+      function(x) mean(x == "1")
+    )
   )
 )
 ```
@@ -420,8 +424,10 @@ input.
 calibration_formula <- ~ stype + growth_bin + api00_bin + ell_bin + comp.imp_bin + hsg_bin + api00_bin:stype + hsg_bin:stype + comp.imp_bin:stype + api00_bin:growth_bin
 
 ## --- Calculate population totals with a single terms object built on the POPULATION ---
-pop_totals <- generate_population_totals(population_df = api_pop,
-                                         calibration_formula)
+pop_totals <- generate_population_totals(
+  population_df = api_pop,
+  calibration_formula
+)
 ```
 
 ## Calling the assessment function
@@ -436,19 +442,21 @@ population totals to it.
 
 ```{r assess_vec}
 result_diagnostics <- assess_aux_vector(
-  design                   = design,
-  df                       = api_resp,
-  already_calibrated       = FALSE,
-  calibration_formula      = calibration_formula,
-  calibration_pop_totals   = pop_totals$population_totals,
-  register_vars            = c("sch.wide_bin"),
-  register_pop_means       = register_pop_means,
-  survey_vars              = c("enroll", "full_bin"),
-  domain_vars              = c("stype", "awards_bin"),
-  diagnostics              = c("weight_variation", 
-                               "register_diagnostics", 
-                               "survey_diagnostics"),
-  verbose                  = FALSE
+  design = design,
+  df = api_resp,
+  already_calibrated = FALSE,
+  calibration_formula = calibration_formula,
+  calibration_pop_totals = pop_totals$population_totals,
+  register_vars = c("sch.wide_bin"),
+  register_pop_means = register_pop_means,
+  survey_vars = c("enroll", "full_bin"),
+  domain_vars = c("stype", "awards_bin"),
+  diagnostics = c(
+    "weight_variation",
+    "register_diagnostics",
+    "survey_diagnostics"
+  ),
+  verbose = FALSE
 )
 
 ## --- Display output ---

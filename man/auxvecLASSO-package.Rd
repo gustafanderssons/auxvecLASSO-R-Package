@@ -17,7 +17,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Gustaf Andersson \email{gustaf.andersson@scb.se}
+\strong{Maintainer}: Gustaf Andersson \email{gustafanderssons@gmail.com} [copyright holder]
 
 }
 \keyword{internal}
