@@ -43,11 +43,11 @@ offers several advantages: simultaneous selection and shrinkage,
 stability even in high-dimensional settings, computational efficiency,
 and discouraging overfitting, leading to models that tend to generalize
 better to new data. In short, viewing auxiliary variable selection as a
-prediction/statistical learning problem can offer many advantages (see
-also, for example, [Caughey & Hartman
-(2017)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3494436) and
-[Mainzer et al.
-(2024)](https://pmc.ncbi.nlm.nih.gov/articles/PMC7615727/)).
+prediction/statistical learning problem can offer many advantages (see also, 
+for example, Caughey & Hartman 
+(2017) [doi:10.2139/ssrn.3494436](https://doi.org/10.2139/ssrn.3494436)
+and Mainzer et al. 
+(2024) [PMC7615727](https://doi.org/10.1002/bimj.202200291). 
 
 The `auxvecLASSO` package provides tools for selecting auxiliary
 variables using LASSO and conducting diagnostics related to survey
@@ -470,7 +470,7 @@ diagnostics that help you understand how your calibration or auxiliary
 vector adjustment performed. The output is organized into three main
 sections:
 
-### **Weight variation metrics**
+### Weight variation metrics
 
 This block describes how the analysis weights are distributed. Stable,
 well-behaved weights improve the reliability of estimates.
@@ -478,14 +478,14 @@ well-behaved weights improve the reliability of estimates.
 -   **min / max / median / mean / sd / range**: Basic distribution of
     weights.\
     *Here:* weights range from **3.18** to **38.64** with mean **13.32**
-    and sd **10.89** → relatively wide spread.
+    and sd **10.89** = relatively wide spread.
 
 -   **coefficient_of_variation (CV)** = sd / mean. Rules of thumb: CV ≲
     0.5 is comfortable; CV \> 1 suggests heavy dispersion.\
-    *Here:* **0.82** → notable dispersion but not extreme.
+    *Here:* **0.82** = notable dispersion but not extreme.
 
 -   **gini_index** (0–1): inequality of weights (0 = equal).\
-    *Here:* **0.416** → moderate inequality.
+    *Here:* **0.416** = moderate inequality.
 
 -   **entropy**: higher = more uniform weights (units depend on log
     base).\
@@ -516,7 +516,7 @@ Reported statistics per variable (and per domain, if requested):
 
 -   **Bias** = (Weighted mean − Population mean).
 
--   **MSE**: mean squared error (Bias² + Var).
+-   **MSE**: mean squared error ([Bias]^2 + Var).
 
 -   **p(Bias)**: two-sided test that Bias = 0 (large values imply no
     detectable bias).
@@ -559,7 +559,7 @@ vignette, we walked through two key components of the package:
 
 Together, these tools provide a workflow for:
 
-1.   generating candidate auxiliary vectors, and
+1.  generating candidate auxiliary vectors, and
 
 2.  checking whether the resulting weights behave sensibly and lead to
     accurate, stable estimates.
@@ -573,4 +573,3 @@ signs that the chosen auxiliary vector is working well.
 
 For further details, advanced options, and examples, consult the package
 documentation.
-

@@ -11,8 +11,8 @@ Provides tools for assessing and selecting auxiliary variables using LASSO. The 
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/gustafanderssons/auxvecLASSO}
-  \item Report bugs at \url{https://github.com/gustafanderssons/auxvecLASSO/issues}
+  \item \url{https://github.com/gustafanderssons/auxvecLASSO-R-Package}
+  \item Report bugs at \url{https://github.com/gustafanderssons/auxvecLASSO-R-Package/issues}
 }
 
 }

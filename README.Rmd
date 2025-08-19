@@ -28,3 +28,4 @@ You can install the development version of auxvecLASSO from [GitHub](https://git
 # install.packages("pak")
 pak::pak("gustafanderssons/auxvecLASSO-R-Package")
 ```
+

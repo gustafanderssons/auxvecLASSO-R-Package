@@ -1,0 +1,23 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# auxvecLASSO
+
+<!-- badges: start -->
+
+<!-- badges: end -->
+
+The goal of auxvecLASSO is to provide tools for assessing and selecting
+auxiliary variables using LASSO. The package includes functions for
+variable selection and diagnostics, facilitating survey calibration
+analysis with emphasis on robust auxiliary vector selection.
+
+## Installation
+
+You can install the development version of auxvecLASSO from
+[GitHub](https://github.com/) with:
+
+``` r
+# install.packages("pak")
+pak::pak("gustafanderssons/auxvecLASSO-R-Package")
+```
