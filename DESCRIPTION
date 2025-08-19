@@ -1,6 +1,6 @@
 Package: auxvecLASSO
 Title: LASSO Auxiliary Variable Selection and Auxiliary Vector Diagnostics
-Version: 0.0.9
+Version: 0.1.0
 Authors@R: 
     person(
         given = "Gustaf", 
