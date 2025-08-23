@@ -6,7 +6,7 @@
 \alias{auxvecLASSO-package}
 \title{auxvecLASSO: LASSO Auxiliary Variable Selection and Auxiliary Vector Diagnostics}
 \description{
-Provides tools for assessing and selecting auxiliary variables using LASSO. The package includes functions for variable selection and diagnostics, facilitating survey calibration analysis with emphasis on robust auxiliary vector selection.
+Provides tools for assessing and selecting auxiliary variables using LASSO. The package includes functions for variable selection and diagnostics, facilitating survey calibration analysis with emphasis on robust auxiliary vector selection. For more details see Tibshirani (1996) \doi{10.1111/j.2517-6161.1996.tb02080.x} and Caughrey and Hartman (2017) \doi{10.2139/ssrn.3494436}.
 }
 \seealso{
 Useful links:

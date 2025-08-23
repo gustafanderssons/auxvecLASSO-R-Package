@@ -33,7 +33,7 @@
 #' }
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # Example using the API data from the survey package
 #' library(survey)
 #' data(api) # loads apipop, apisrs, apistrat, etc.

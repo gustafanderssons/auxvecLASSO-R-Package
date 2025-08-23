@@ -11,3 +11,8 @@
 
 ## Notes to CRAN
 - Examples and tests avoid network access and are designed to be run in under 60s.
+
+## Resubmission
+This is a re-submission. I have added references in the DESCRIPTION file
+and changed from \dontrun{} to \donttest{} in the example for
+generate_population_totals().

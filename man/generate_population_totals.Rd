@@ -58,7 +58,7 @@ a \code{terms} object, so downstream use on respondent data can reuse
 the exact same encoding.
 }
 \examples{
-\dontrun{
+\donttest{
 # Example using the API data from the survey package
 library(survey)
 data(api) # loads apipop, apisrs, apistrat, etc.
